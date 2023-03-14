@@ -1,0 +1,24 @@
+{
+    "env": {
+        "commonjs": true,
+        "es2021": true,
+        "node": true
+    },
+    "extends": "google",
+    "overrides": [
+    ],
+    "parserOptions": {
+        "ecmaVersion": "latest"
+    },
+    "rules": {
+        "comma-dangle": ["error", { "functions": "never", "objects": "always", "arrays": "always" }],
+        "indent": ["error", 4],
+        "object-curly-spacing": ["error", "always"],
+        "no-undef": "error",
+        "no-irregular-whitespace": "error",
+        "no-const-assign": "error",
+        "no-unreachable": "error",
+        "camelcase": "error",
+        "no-cond-assign": "error"
+    }
+}
