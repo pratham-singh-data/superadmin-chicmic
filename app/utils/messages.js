@@ -10,4 +10,5 @@ module.exports = {
     UnathorizedOperationDetected: `Unauthorized operation detected.`,
     UpdateSuccessful: `Update successful.`,
     UserDoesNotExist: `This user does not exist.`,
+    UserDeletedSuccessfully: `User deleted successfully.`,
 };

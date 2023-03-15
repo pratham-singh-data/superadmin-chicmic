@@ -12,7 +12,8 @@ const { EmailAlreadyInUse,
     UpdateSuccessful,
     ReadNeeded,
     UserDoesNotExist,
-    GrantNeeded, } = require('../utils/messages');
+    GrantNeeded,
+    UserDeletedSuccessfully, } = require('../utils/messages');
 const { SECRET_KEY, TokenExpiryTime, } = require('../../config');
 const jwt = require(`jsonwebtoken`);
 const { hashPassword, } = require('../helpers/hashPassword');
@@ -214,7 +215,6 @@ async function update(req, res) {
         updateQuery.email = body.email;
     }
 
-
     await PersonModel.updateOne({
         _id: targetUser._id,
     }, updateQuery).exec();
@@ -412,10 +412,86 @@ async function setPermission(req, res) {
     });
 }
 
+/** Delete user
+ * @param {Request} req Express request object
+ * @param {Response} res Express response object
+ */
+async function deleteUser(req, res) {
+    const localResponder = generateLocalSendResponse(res);
+
+    // just in case token expires between calls
+    let id;
+
+    try {
+        ({ id, } = jwt.verify(req.headers.token, SECRET_KEY));
+    } catch (err) {
+        localResponder({
+            statusCode: 403,
+            message: TokenNotVerfied,
+        });
+        return;
+    }
+
+    // user can only delete if they have grant permission
+    const userData = await PersonModel.findById(id).exec();
+
+    if (! userData.permissions.grant) {
+        localResponder({
+            statusCode: 403,
+            message: GrantNeeded,
+        });
+        return;
+    }
+
+    // id of user to delete
+    let { id: targetId, } = req.params;
+    targetId = String(targetId);
+
+    const targetUser = await PersonModel.findById(targetId).exec();
+    const unauthorizedOperation = localResponder.bind(undefined, {
+        statusCode: 403,
+        message: UnathorizedOperationDetected,
+    });
+
+    if (userData.role === `super-admin`) {
+        // super admin can delete anyone except other super-admins
+        if (targetUser.role === `super-admin` &&
+            targetUser.id !== userData.id) {
+            unauthorizedOperation();
+            return;
+        }
+    } else if (userData.role === `admin`) {
+        // admins can only delete other users
+        if (targetUser.role === `user` || userData.id === targetUser.id) {
+            unauthorizedOperation();
+            return;
+        }
+    } else if (userData.role === `user`) {
+        // user cannot delete anyone
+        // should never work as user can never get the grant permission
+        unauthorizedOperation();
+        return;
+    }
+
+    try {
+        await PersonModel.deleteOne({
+            _id: userData.id,
+        });
+    } catch (err) {
+        console.log(err.message);
+    }
+
+    localResponder({
+        statusCode: 200,
+        message: UserDeletedSuccessfully,
+    });
+}
+
 module.exports = {
     signup,
     login,
     update,
     getUser,
     setPermission,
+    deleteUser,
 };
