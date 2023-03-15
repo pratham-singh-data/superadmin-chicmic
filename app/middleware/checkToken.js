@@ -3,7 +3,7 @@ const { SECRET_KEY, } = require('../../config');
 const { PersonModel, } = require('../models/person');
 const { TokenNotVerfied,
     UnableToVerifyCredentials, } = require('../utils/messages');
-const { sendResponse, } = require('../utils/sendResponse');
+const { generateLocalSendResponse, } = require('../utils/sendResponse');
 
 /** Verifies JWT token in headers
  * @param {Request} req Express request object
@@ -11,8 +11,10 @@ const { sendResponse, } = require('../utils/sendResponse');
  * @param {Function} next Express next function
  */
 async function checkToken(req, res, next) {
+    const localResponder = generateLocalSendResponse(res);
+
     if (! req.headers.token) {
-        sendResponse(res, {
+        localResponder({
             statusCode: 403,
             message: TokenNotVerfied,
         });
@@ -25,7 +27,7 @@ async function checkToken(req, res, next) {
     try {
         ({ id, } = jwt.verify(req.headers.token, SECRET_KEY));
     } catch (err) {
-        sendResponse(res, {
+        localResponder({
             statusCode: 403,
             message: TokenNotVerfied,
         });
@@ -33,7 +35,7 @@ async function checkToken(req, res, next) {
     }
 
     if (! await PersonModel.findById(id).exec()) {
-        sendResponse(res, {
+        localResponder({
             statusCode: 403,
             message: UnableToVerifyCredentials,
         });

@@ -7,7 +7,15 @@ function sendResponse(res, data) {
     res.json(data);
 };
 
+/** Returns a semdResponse bound to given Response object
+ * @param {Response} res Express response object]
+ * @return {Function} a version of sendResponse bound to the given res
+ */
+function generateLocalSendResponse(res) {
+    return sendResponse.bind(undefined, res);
+};
+
 module.exports = {
-    sendResponse,
+    generateLocalSendResponse,
 };
 

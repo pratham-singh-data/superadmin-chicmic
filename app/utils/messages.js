@@ -9,4 +9,5 @@ module.exports = {
     GrantNeeded: `You need grant permission for this operation.`,
     UnathorizedOperationDetected: `Unauthorized operation detected.`,
     UpdateSuccessful: `Update successful.`,
+    UserDoesNotExist: `This user does not exist.`,
 };
