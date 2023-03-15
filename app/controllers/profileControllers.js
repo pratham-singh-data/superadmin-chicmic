@@ -11,18 +11,21 @@ const { EmailAlreadyInUse,
     UnathorizedOperationDetected,
     UpdateSuccessful,
     ReadNeeded,
-    UserDoesNotExist, } = require('../utils/messages');
+    UserDoesNotExist,
+    GrantNeeded, } = require('../utils/messages');
 const { SECRET_KEY, TokenExpiryTime, } = require('../../config');
 const jwt = require(`jsonwebtoken`);
 const { hashPassword, } = require('../helpers/hashPassword');
+const { permissionsSchema, } = require('../validators/permissionSchema');
 
 /** Signs up a new user
  * @param {Request} req Express request object
  * @param {Response} res Express response object
  */
 async function signup(req, res) {
-    let body;
     const localResponder = generateLocalSendResponse(res);
+
+    let body;
 
     try {
         body = Joi.attempt(req.body, signupSchema);
@@ -303,10 +306,110 @@ async function getUser(req, res) {
  * @param {Request} req Express request object
  * @param {Response} res Express response object
  */
-function setPermission(req, res) {
-    
+async function setPermission(req, res) {
+    const localResponder = generateLocalSendResponse(res);
 
-    res.send('done');
+    const respondSuccessfulUpdate = generateLocalSendResponse.bind(undefined, {
+        statusCode: 200,
+        message: UpdateSuccessful,
+    });
+
+    // confirm schema
+    let body;
+
+    try {
+        body = Joi.attempt(req.body, permissionsSchema);
+    } catch (err) {
+        localResponder({
+            statusCode: 400,
+            message: err.message,
+        });
+
+        return;
+    }
+
+    // just in case token expires between calls
+    let id;
+
+    try {
+        ({ id, } = jwt.verify(req.headers.token, SECRET_KEY));
+    } catch (err) {
+        localResponder({
+            statusCode: 403,
+            message: TokenNotVerfied,
+        });
+        return;
+    }
+
+    // user can only read if they have read permission
+    const userData = await PersonModel.findById(id).exec();
+
+    if (! userData.permissions.grant) {
+        localResponder({
+            statusCode: 403,
+            message: GrantNeeded,
+        });
+        return;
+    }
+
+    // user cannot grant permissions
+    if (userData.role === `user`) {
+        localResponder({
+            statusCode: 403,
+            message: UnathorizedOperationDetected,
+        });
+        return;
+    }
+
+    const targetUser = await PersonModel.findById(body.id).exec();
+
+    delete body.id; // because this will be the update query
+
+    // user cannot be granted grant
+    if (targetUser.role === `user`) {
+        delete body.grant;
+    }
+
+    // if that was the only update, return
+    if (Object.keys(body) === 1) {
+        respondSuccessfulUpdate();
+        return;
+    }
+
+    const unauthorizedOperation = localResponder.bind(undefined, {
+        statusCode: 403,
+        message: UnathorizedOperationDetected,
+    });
+
+    if (userData.role === `super-admin`) {
+        // super-admin can define permissions for admin and user
+        if (targetUser.role === `super-admin`) {
+            unauthorizedOperation();
+            return;
+        }
+    } else if (userData.role === `admin`) {
+        // admin can defined permissions for users
+        if (targetUser.role !== `user`) {
+            unauthorizedOperation();
+            return;
+        }
+    }
+
+    await PersonModel.updateOne({
+        _id: targetUser._id,
+    }, {
+        permissions: {
+            read: !! body.read,
+            write: !! body.write,
+            grant: !! body.grant,
+        },
+    });
+
+    respondSuccessfulUpdate();
+    localResponder({
+        statusCode: 200,
+        message: UpdateSuccessful,
+    });
 }
 
 module.exports = {
